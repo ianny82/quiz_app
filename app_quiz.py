@@ -11,28 +11,42 @@ def main():
     st.set_page_config(page_title="Quiz a Tempo", layout="centered")
 
     st.title("🧠 Quiz a Tempo")
-    st.write("Rispondi a ciascuna domanda e invia. Il tempo di risposta verrà registrato.")
     
-    # Inizializzazione delle variabili di stato
-    if 'start_time' not in st.session_state:
-        st.session_state.start_time = None
-    if 'current_question_index' not in st.session_state:
-        st.session_state.current_question_index = 0
-    if 'results' not in st.session_state:
-        st.session_state.results = []
-    if 'quiz_start_date' not in st.session_state:
-        st.session_state.quiz_start_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    # Styling textarea height
+    st.markdown("""
+        <style>
+            .element-container textarea {
+                height: 60px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Step 1: Ask user how many questions
+    if 'quiz_started' not in st.session_state:
+        st.session_state.quiz_started = False
+
+    if not st.session_state.quiz_started:
+        st.subheader("📋 Impostazioni Quiz")
+        num_questions = st.number_input("Quante domande vuoi?", min_value=1, max_value=50, value=5, step=1)
+        if st.button("Inizia Quiz"):
+            st.session_state.num_questions = num_questions
+            st.session_state.quiz_started = True
+            st.session_state.quiz_start_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            st.session_state.current_question_index = 0
+            st.session_state.results = []
+            st.session_state.start_time = None
+            st.session_state.quiz_completed = False
+            genera_domande(num_questions)
+            st.rerun()
+        return
+
     if 'quiz_completed' not in st.session_state:
         st.session_state.quiz_completed = False
-    if 'questions' not in st.session_state:
-        genera_domande()
 
-    # Se il quiz è completato
     if st.session_state.quiz_completed:
         mostra_risultati_finali()
         return
-    
-    # Mostra la domanda corrente
+
     if st.session_state.current_question_index < len(st.session_state.questions):
         mostra_domanda(st.session_state.questions[st.session_state.current_question_index])
     else:
@@ -41,11 +55,10 @@ def main():
         st.rerun()
 
 
-def genera_domande():
+def genera_domande(n):
     domande = []
     coppie = set()
-
-    while len(domande) < 5:  # Puoi aumentare a 20 se vuoi
+    while len(domande) < n:
         a = random.randint(1, 6)
         b = random.randint(1, 10)
         coppia = tuple(sorted((a, b)))
@@ -55,39 +68,116 @@ def genera_domande():
                 "question": f"Quanto fa {a} x {b}?",
                 "correct_answer": a * b
             })
-
     st.session_state.questions = domande
 
+
+
+def custom_keypad_input(question_index):
+    st.markdown("### Inserisci la tua risposta:")
+
+    # Keypad display state
+    key = f"keypad_{question_index}"
+    if key not in st.session_state:
+        st.session_state[key] = ""
+
+    # Display input field like a calculator screen
+    display = st.session_state[key] if st.session_state[key] else "&nbsp;"
+    st.markdown(
+        f"""
+        <div style="
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 60px;
+            font-size: 36px;
+            font-weight: bold;
+            border: 2px solid #ccc;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            background-color: #f9f9f9;
+        ">
+            {display}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Define button layout
+    buttons = [["1", "2", "3"],
+               ["4", "5", "6"],
+               ["7", "8", "9"],
+               ["C", "0", "←"]]
+
+    # Reduce column spacing with inline style
+    button_css = """
+        <style>
+            div[data-testid="column"] {
+                padding: 4px;
+            }
+            button[kind="secondary"] {
+                width: 100% !important;
+            }
+        </style>
+    """
+    st.markdown(button_css, unsafe_allow_html=True)
+
+    # Display buttons in rows
+    for row in buttons:
+        cols = st.columns(3, gap="small")
+        for i, label in enumerate(row):
+            if cols[i].button(label, key=f"{key}_{label}"):
+                if label == "C":
+                    st.session_state[key] = ""
+                elif label == "←":
+                    st.session_state[key] = st.session_state[key][:-1]
+                else:
+                    st.session_state[key] += label
+                st.rerun()
+
+    # Submit button centered
+    submit_col = st.columns([1, 2, 1])[1]
+    invia = submit_col.button("✅ Invia", key=f"submit_{question_index}")
+    return st.session_state[key], invia
+
+
+def reset_quiz():
+    st.session_state.quiz_started = False
+    st.session_state.quiz_completed = False
+    st.session_state.questions = []
+    st.session_state.current_question_index = 0
+    st.session_state.results = []
+    st.session_state.start_time = None
+
+    # Remove any stored keypad input
+    keys_to_clear = [key for key in st.session_state if key.startswith("keypad_") or key.startswith("submit_")]
+    for key in keys_to_clear:
+        del st.session_state[key]
 
 def mostra_domanda(dati_domanda):
     if st.session_state.start_time is None:
         st.session_state.start_time = time.time()
-    
+
     st.subheader(f"Domanda {st.session_state.current_question_index + 1}")
-    st.write(dati_domanda["question"])
-    
-    risposta_utente = st.text_area("La tua risposta:", key=f"answer_{st.session_state.current_question_index}")
-    
-    if st.button("Invia Risposta"):
+    st.markdown(f"<div style='font-size: 24px; font-weight: bold;'>{dati_domanda['question']}</div>", unsafe_allow_html=True)
+
+    user_input, submitted = custom_keypad_input(st.session_state.current_question_index)
+
+    if submitted:
         end_time = time.time()
         tempo_impiegato = end_time - st.session_state.start_time
 
-        corretta = False
-        risposta_corretta = dati_domanda["correct_answer"]
-
         try:
-            risposta_utente_num = float(risposta_utente.strip())
-            corretta = risposta_utente_num == float(risposta_corretta)
-        except (ValueError, TypeError):
+            risposta_num = float(user_input)
+            corretta = risposta_num == float(dati_domanda["correct_answer"])
+        except:
             corretta = False
 
         risultato = {
-            "indice_domanda": st.session_state.current_question_index,
-            "domanda": dati_domanda["question"],
-            "risposta_utente": risposta_utente,
-            "risposta_corretta": risposta_corretta,
-            "tempo_impiegato_secondi": round(tempo_impiegato, 2),
-            "corretta": corretta
+            "Domanda": dati_domanda["question"],
+            "Risposta Utente": user_input,
+            "Risposta Corretta": dati_domanda["correct_answer"],
+            "Corretta": "✅" if corretta else "❌",
+            "Tempo (s)": round(tempo_impiegato, 2)
         }
 
         st.session_state.results.append(risultato)
@@ -96,32 +186,18 @@ def mostra_domanda(dati_domanda):
         st.rerun()
 
 
+
 def mostra_risultati_finali():
-    st.success("🎉 Complimenti! Hai completato il quiz.")
-    
-    st.subheader("📊 Riepilogo Quiz")
-    df = pd.DataFrame(st.session_state.results)
+    st.success("🎉 Hai completato il quiz!")
 
-    risposte_corrette = sum(df['corretta'])
-    totale_domande = len(df)
-    tempo_medio = df['tempo_impiegato_secondi'].mean()
+    st.subheader("📊 Risultati Finali")
+    df = pd.DataFrame(st.session_state.results)[["Domanda", "Risposta Utente", "Corretta", "Tempo (s)"]]
+    st.table(df)
 
-    st.write(f"✅ Punteggio: {risposte_corrette} su {totale_domande}")
-    st.write(f"⏱️ Tempo medio per domanda: {tempo_medio:.2f} secondi")
+    punteggio = df["Corretta"].value_counts().get("✅", 0)
+    st.write(f"✅ Punteggio: {punteggio} su {len(df)}")
 
-    st.subheader("📋 Dettaglio Risposte")
-    for i, risultato in enumerate(st.session_state.results):
-        with st.expander(f"Domanda {i+1}"):
-            st.write(f"**Domanda:** {risultato['domanda']}")
-            st.write(f"**Tua risposta:** {risultato['risposta_utente']}")
-            st.write(f"**Risposta corretta:** {risultato['risposta_corretta']}")
-            st.write(f"**Tempo impiegato:** {risultato['tempo_impiegato_secondi']} secondi")
-            if risultato['corretta']:
-                st.success("✅ Corretto")
-            else:
-                st.error("❌ Errato")
-
-    if st.button("🔄 Ricomincia il Quiz"):
+    if st.button("🔄 Ricomincia"):
         reset_quiz()
         st.rerun()
 
@@ -129,33 +205,21 @@ def mostra_risultati_finali():
 def salva_risultati_su_file():
     if not os.path.exists("risultati_quiz"):
         os.makedirs("risultati_quiz")
-    
-    dati_quiz = {
-        "data_quiz": st.session_state.quiz_start_date,
-        "numero_domande": len(st.session_state.results),
-        "risultati": st.session_state.results
-    }
 
-    filename_json = f"risultati_quiz/risultati_{st.session_state.quiz_start_date}.json"
-    with open(filename_json, "w") as f:
-        json.dump(dati_quiz, f, indent=4)
+    filename_base = f"risultati_quiz/risultati_{st.session_state.quiz_start_date}"
+    with open(f"{filename_base}.json", "w") as f:
+        json.dump(st.session_state.results, f, indent=4)
 
-    df = pd.DataFrame(st.session_state.results)
-    filename_csv = f"risultati_quiz/risultati_{st.session_state.quiz_start_date}.csv"
-    df.to_csv(filename_csv, index=False)
-
-    st.session_state.saved_filename = filename_json
-    return filename_json
+    pd.DataFrame(st.session_state.results).to_csv(f"{filename_base}.csv", index=False)
 
 
 def reset_quiz():
-    st.session_state.start_time = None
+    st.session_state.quiz_started = False
+    st.session_state.quiz_completed = False
+    st.session_state.questions = []
     st.session_state.current_question_index = 0
     st.session_state.results = []
-    st.session_state.quiz_start_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    st.session_state.quiz_completed = False
-    if 'questions' in st.session_state:
-        del st.session_state.questions
+    st.session_state.start_time = None
 
 
 if __name__ == "__main__":
