@@ -71,59 +71,64 @@ def genera_domande(n):
     st.session_state.questions = domande
 
 
-
 def custom_keypad_input(question_index):
     st.markdown("### Inserisci la tua risposta:")
 
-    # Keypad display state
+    # Keypad state key
     key = f"keypad_{question_index}"
     if key not in st.session_state:
         st.session_state[key] = ""
 
-    # Display input field like a calculator screen
-    display = st.session_state[key] if st.session_state[key] else "&nbsp;"
+    # # Display the current input (centered)
+    # st.text_input("Risposta corrente:", st.session_state[key], disabled=True, label_visibility="collapsed")
+
+    # Compact display area aligned to the right (calculator-style)
     st.markdown(
         f"""
         <div style="
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 60px;
-            font-size: 36px;
+            font-size: 28px;
             font-weight: bold;
+            text-align: right;
             border: 2px solid #ccc;
-            border-radius: 12px;
-            margin-bottom: 16px;
+            border-radius: 8px;
+            padding: 6px 12px;
             background-color: #f9f9f9;
+            width: 100%;
+            max-width: 280px;
+            margin: 0 auto 12px auto;
+            overflow-x: auto;
+            box-sizing: border-box;
         ">
-            {display}
+            {st.session_state[key] if st.session_state[key] else "&nbsp;"}
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # Define button layout
-    buttons = [["1", "2", "3"],
-               ["4", "5", "6"],
-               ["7", "8", "9"],
-               ["C", "0", "←"]]
-
-    # Reduce column spacing with inline style
-    button_css = """
+    # CSS to shrink button spacing and size for mobile
+    st.markdown("""
         <style>
             div[data-testid="column"] {
-                padding: 4px;
+                padding: 2px !important;
             }
             button[kind="secondary"] {
                 width: 100% !important;
+                padding: 0.75em 0 !important;
+                font-size: 18px !important;
             }
         </style>
-    """
-    st.markdown(button_css, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-    # Display buttons in rows
-    for row in buttons:
-        cols = st.columns(3, gap="small")
+    # Define keypad layout (4 rows, 3 columns)
+    layout = [
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"],
+        ["C", "0", "←"]
+    ]
+
+    for row in layout:
+        cols = st.columns(3)
         for i, label in enumerate(row):
             if cols[i].button(label, key=f"{key}_{label}"):
                 if label == "C":
@@ -132,7 +137,7 @@ def custom_keypad_input(question_index):
                     st.session_state[key] = st.session_state[key][:-1]
                 else:
                     st.session_state[key] += label
-                st.rerun()
+                st.rerun()  # Needed for real-time updates
 
     # Submit button centered
     submit_col = st.columns([1, 2, 1])[1]
